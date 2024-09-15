@@ -14,7 +14,7 @@ static void main_loop(void);
 
 Task taskLedAnimation(20UL, TASK_FOREVER, &main_loop);
 
-uint32_t get_millisecond_timer(void) {
+uint32_t get_millisecond_timer(void) {  //check if this rolling over is an issue for fastled
   return mesh.getNodeTime() / 1000;
 }
 
