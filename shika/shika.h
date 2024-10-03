@@ -2,9 +2,9 @@
 #define _SHIKA_H
 
 #include <Arduino.h>
-
+#define TIME_SYNC_ACCURACY 10 // 10 milliseconds
+#define TIME_SYNC_INTERVAL 10 * TASK_SECOND  // Mesh time resync period, in us. 10 seconds
 #include "painlessMesh.h"  //timesync branch with adjusted power
-#define FASTLED_INTERNAL 
 #define USE_GET_MILLISECOND_TIMER  // Define our own millis() source for FastLED beat functions: see get_millisecond_timer()
 #include "FastLED.h"
 

@@ -1,21 +1,42 @@
-#define TIME_SYNC_INTERVAL 5000000  // Mesh time resync period, in us. 5 seconds
+
 #define TASK_RES_MULTIPLIER 1
 #include "shika.h"
 #include "gpio.h"
 #include "leds.h"
 
-#define BROADCAST_DELAY 200000  // 200 ms delay to handle latency across mesh (Adjust as needed)
+#define BROADCAST_DELAY 200  // 200 ms delay to handle latency across mesh (Adjust as needed)
 
 painlessMesh mesh;
 SimpleList<uint32_t> nodes;
 Scheduler userScheduler;
 
+char buffer[50];
+bool repeat = false;
+uint32_t repeat_time = 0;
+
 static void main_loop(void);
 
 Task taskLedAnimation(20UL, TASK_FOREVER, &main_loop);
 
-uint32_t get_millisecond_timer(void) {  //check if this rolling over is an issue for fastled
-  return mesh.getNodeTime() / 1000;
+uint32_t get_millisecond_timer(void) {
+  // do not trust this timer for anything logic related
+  // this will cause a visual glitch at rollover
+  // every ~70 minutes or less, depending on the time sync
+  return (mesh.getNodeTime());
+}
+
+static int global_mode = GLOBAL_MODE_OFF;
+static uint32_t queue_time = 0;
+static int queued_mode = GLOBAL_MODE_NONE;
+static int queued_data = 0;
+
+
+void newConnectionCallback(uint32_t nodeId) {
+  Serial.printf("New Connection, nodeId = %u\n", nodeId);
+  led_reset();
+  leds_set_intro();
+  global_mode = GLOBAL_MODE_PARTY;
+  gpio_vibe_request(2, GPIO_VIBE_SHORT);
 }
 
 void setup() {
@@ -26,6 +47,7 @@ void setup() {
   mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6, 1);
   mesh.onReceive(&receivedCallback);
   mesh.setContainsRoot(false);
+  mesh.onNewConnection(&newConnectionCallback);
 
   userScheduler.addTask(taskLedAnimation);
   taskLedAnimation.enable();
@@ -38,11 +60,6 @@ void setup() {
 void loop() {
   mesh.update();
 }
-
-static int global_mode = GLOBAL_MODE_OFF;
-static uint32_t queue_time = 0;
-static int queued_mode = GLOBAL_MODE_NONE;
-static int queued_data = 0;
 
 static void main_loop(void) {
 
@@ -66,8 +83,15 @@ static void main_loop(void) {
     queued_mode = GLOBAL_MODE_NONE;
   }
 
-  if (leds_update(global_mode))
+  if (leds_update(global_mode)) {
     global_mode = GLOBAL_MODE_OFF;
+    gpio_vibe_request(1, GPIO_VIBE_SHORT);
+  }
+
+  if (repeat && millis() - repeat_time > 50) {
+    mesh.sendBroadcast(buffer, false);
+    repeat = false;
+  }
 }
 
 static inline bool check_queue_time(void) {
@@ -77,50 +101,64 @@ static inline bool check_queue_time(void) {
 }
 
 static inline void logic_party(uint32_t time, int effect) {
-  gpio_vibe_request(2, GPIO_VIBE_SHORT);
-  queue_time = time;
-  queued_mode = GLOBAL_MODE_PARTY;
-  queued_data = effect;
+  if (queue_time != time) {
+    gpio_vibe_request(2, GPIO_VIBE_SHORT);
+    queue_time = time;
+    queued_mode = GLOBAL_MODE_PARTY;
+    queued_data = effect;
+  } else {
+    Serial.println("Suppressing");
+  }
 }
 
 static inline void logic_alarm(uint32_t time) {
-  gpio_vibe_request(1, GPIO_VIBE_LONG);
-  queue_time = time;
-  queued_mode = GLOBAL_MODE_ALARM;
+  if (queue_time != time) {
+    gpio_vibe_request(1, GPIO_VIBE_LONG);
+    queue_time = time;
+    queued_mode = GLOBAL_MODE_ALARM;
+  } else {
+    Serial.println("Suppressing");
+  }
 }
 
 static inline void receivedCallback(uint32_t from, String& msg) {
-
-  Serial.printf("Parsing: Received from %u msg=%s\n", from, msg.c_str());
 
   char mode_tmp;
   uint32_t start_time;
   int mode;
 
+  Serial.printf("Parsing: Received from %u msg=%s\n", from, msg.c_str());
+
   if (sscanf(msg.c_str(), "%c %u %d", &mode_tmp, &start_time, &mode) == 3) {
-    if (mode_tmp == 'A')
-      logic_alarm(start_time);
-    else if (mode_tmp == 'P') {
-      logic_party(start_time, mode);
+    if (mode_tmp == 'A' || mode_tmp == 'P') {
+      if (mode_tmp == 'A')
+        logic_alarm(start_time);
+      else if (mode_tmp == 'P') {
+        logic_party(start_time, mode);
+      }
+      uint32_t headroom = start_time - mesh.getNodeTime();
+
+      if (headroom > BROADCAST_DELAY)
+        Serial.printf("Late: %u\n", UINT32_MAX - headroom);
+      else
+        Serial.printf("Early: %u\n", headroom);
     }
-    uint32_t headroom = start_time - mesh.getNodeTime();
-    if (headroom > BROADCAST_DELAY)
-      Serial.printf("Late: %u\n", UINT32_MAX - headroom);
-    else
-      Serial.printf("Early: %u\n", headroom);
   }
 }
 
+
 static inline void mesh_announce_alarm(uint32_t start_time) {
-  char buffer[50];
   sprintf(buffer, "A %u %d", start_time, 0);
   Serial.println(buffer);
   mesh.sendBroadcast(buffer, true);
+  repeat = true;
+  repeat_time = millis();
 }
 
 static inline void mesh_announce_party(uint32_t start_time) {
-  char buffer[50];
   sprintf(buffer, "P %u %d", start_time, leds_get_effect_offset());
   Serial.println(buffer);
   mesh.sendBroadcast(buffer, true);
+  repeat = true;
+  repeat_time = millis();
 }

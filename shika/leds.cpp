@@ -81,14 +81,19 @@ void leds_effect_change_offset(int offset) {
   led_effect_offset = led_effect_offset % NUM_LED_EFFECTS;
 }
 
+void led_reset() {
+  led_effect_offset = 0;
+
+  led_time_offset = 0;
+}
+
 
 bool leds_update(int global_mode) {
   bool animation_done = false;
 
   static CRGB overlay_color(0, 0, 0);
 
-
-  uint32_t this_tick = get_millisecond_timer();  //will this be an overflow issue?
+  uint32_t this_tick = get_millisecond_timer();
   gHue = this_tick / 10;
 
   int mode = (((this_tick + led_time_offset) / TIME_PER_EFFECT) + led_effect_offset) % NUM_LED_EFFECTS;
@@ -140,14 +145,17 @@ bool leds_update(int global_mode) {
 
   } else if (global_mode == GLOBAL_MODE_ALARM) {
     static uint32_t alarm_start_time = 0;
+    static uint32_t alarm_fx_timebase = 0;
+
     if (intro) {
       alarm_start_time = millis();
+      alarm_fx_timebase = get_millisecond_timer();
       intro = false;
     }
 
     const int zero_offset = 16;
-    int pos = beatsin16(90, 0, 255 + zero_offset, alarm_start_time, 3 *  UINT16_MAX / 4);
-    Serial.println(pos);
+    int pos = beatsin16(90, 0, 255 + zero_offset, alarm_fx_timebase, 3 * UINT16_MAX / 4);
+
     pos -= zero_offset;
     if (pos < 0) pos = 0;
     fill_solid(leds, NUM_LEDS, CRGB(pos, 0, 0));

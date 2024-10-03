@@ -38,7 +38,7 @@ class MeshTime {
    * SNTP based
    * protocol](https://gitlab.com/painlessMesh/painlessMesh/wikis/mesh-protocol#time-sync)
    */
-  uint32_t getNodeTime() { return micros() + timeOffset; }
+  uint32_t getNodeTime() { return millis() + timeOffset; }
 
  protected:
   uint32_t timeOffset = 0;
@@ -133,9 +133,12 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
 
       Log(logger::S_TIME,
           "handleTimeSync(): timeSyncStatus with %u completed\n", conn->nodeId);
-
-      // After response is sent I assume sync is completed
+		  
+      if (mesh.nodeTimeSentCallback) {
+        mesh.nodeTimeSentCallback( conn->nodeId);
+      }
       conn->timeSyncTask.delay(TIME_SYNC_INTERVAL);
+	        // After response is sent I assume sync is completed
       break;
 
     case (painlessmesh::protocol::TIME_REPLY): {
@@ -148,7 +151,7 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
 
       // flag all connections for re-timeSync
       if (mesh.nodeTimeAdjustedCallback) {
-        mesh.nodeTimeAdjustedCallback(offset);
+        mesh.nodeTimeAdjustedCallback(offset,conn->nodeId );
       }
 
       if ((offset < TIME_SYNC_ACCURACY) && (offset > -TIME_SYNC_ACCURACY) && (offset != 0)) {

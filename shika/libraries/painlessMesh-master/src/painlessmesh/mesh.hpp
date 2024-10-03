@@ -17,7 +17,8 @@ typedef std::function<void(uint32_t nodeId)> newConnectionCallback_t;
 typedef std::function<void(uint32_t nodeId)> droppedConnectionCallback_t;
 typedef std::function<void(uint32_t from, TSTRING &msg)> receivedCallback_t;
 typedef std::function<void()> changedConnectionsCallback_t;
-typedef std::function<void(int32_t offset)> nodeTimeAdjustedCallback_t;
+typedef std::function<void(int32_t offset,uint32_t nodeId)> nodeTimeAdjustedCallback_t;
+typedef std::function<void(uint32_t nodeId)> nodeTimeSentCallback_t;
 typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
 
 /**
@@ -313,6 +314,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     nodeTimeAdjustedCallback = onTimeAdjusted;
   }
 
+  void onNodeTimeSent(nodeTimeSentCallback_t onTimeSent) {
+	Log(logger::GENERAL, "onNodeTimeSent():\n");
+    nodeTimeSentCallback = onTimeSent;
+  }
+
+
   /** Callback that gets called when a delay measurement is received.
    *
    * This fires when a time delay masurement response is received, after a
@@ -419,6 +426,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   callback::List<uint32_t, bool> droppedConnectionCallbacks;
   callback::List<uint32_t> changedConnectionCallbacks;
   nodeTimeAdjustedCallback_t nodeTimeAdjustedCallback;
+  nodeTimeSentCallback_t nodeTimeSentCallback;
   nodeDelayCallback_t nodeDelayReceivedCallback;
 #ifdef ESP32
   SemaphoreHandle_t xSemaphore = NULL;
