@@ -158,7 +158,7 @@ bool leds_update(int global_mode) {
 
     pos -= zero_offset;
     if (pos < 0) pos = 0;
-    fill_solid(leds, NUM_LEDS, CRGB(pos, 0, 0));
+    fill_solid(leds, NUM_LEDS, CRGB(pos ,0 , 0));
 
     if (pos == 0 && millis() - alarm_start_time > TIME_PER_ALARM)
       animation_done = true;

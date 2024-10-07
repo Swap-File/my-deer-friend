@@ -30,74 +30,20 @@ static uint32_t queue_time = 0;
 static int queued_mode = GLOBAL_MODE_NONE;
 static int queued_data = 0;
 
+static int nodecount = 0;
 
-void newConnectionCallback(uint32_t nodeId) {
-  Serial.printf("New Connection, nodeId = %u\n", nodeId);
-  led_reset();
-  leds_set_intro();
-  global_mode = GLOBAL_MODE_PARTY;
-  gpio_vibe_request(2, GPIO_VIBE_SHORT);
-}
-
-void setup() {
-  Serial.begin(115200);
-
-  //mesh.setDebugMsgTypes(ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE);
-  mesh.setDebugMsgTypes(ERROR | SYNC | STARTUP);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6, 1);
-  mesh.onReceive(&receivedCallback);
-  mesh.setContainsRoot(false);
-  mesh.onNewConnection(&newConnectionCallback);
-
-  userScheduler.addTask(taskLedAnimation);
-  taskLedAnimation.enable();
-  //WiFi.setTxPower(WIFI_POWER_2dBm);
-
-  leds_init();
-  gpio_init();
-}
-
-void loop() {
-  mesh.update();
-}
-
-static void main_loop(void) {
-
-  int result = gpio_update(mesh.getNodeList(true).size());
-
-  if (result == GPIO_EVENT_ALARM)
-    mesh_announce_alarm(mesh.getNodeTime() + BROADCAST_DELAY);
-  else if (result == GPIO_EVENT_PARTY)
-    mesh_announce_party(mesh.getNodeTime() + BROADCAST_DELAY);
-
-  if (queued_mode == GLOBAL_MODE_PARTY && check_queue_time()) {
+void ChangedConnectionsCallback() {
+  int temp = mesh.getNodeList(true).size();
+  if (temp > nodecount) {
+    Serial.printf("New Connection\n");
+    led_reset();
     leds_set_intro();
-    leds_effect_change_offset(queued_data + 1);  //increment the effect
     global_mode = GLOBAL_MODE_PARTY;
-    queued_mode = GLOBAL_MODE_NONE;
+    gpio_vibe_request(2, GPIO_VIBE_SHORT);
+  } else {
+    Serial.printf("Dropped Connection\n");
   }
-
-  if (queued_mode == GLOBAL_MODE_ALARM && check_queue_time()) {
-    leds_set_intro();
-    global_mode = GLOBAL_MODE_ALARM;
-    queued_mode = GLOBAL_MODE_NONE;
-  }
-
-  if (leds_update(global_mode)) {
-    global_mode = GLOBAL_MODE_OFF;
-    gpio_vibe_request(1, GPIO_VIBE_SHORT);
-  }
-
-  if (repeat && millis() - repeat_time > 50) {
-    mesh.sendBroadcast(buffer, false);
-    repeat = false;
-  }
-}
-
-static inline bool check_queue_time(void) {
-  if (mesh.getNodeTime() - queue_time < UINT32_MAX / 2)
-    return true;
-  return false;
+  nodecount = temp;
 }
 
 static inline void logic_party(uint32_t time, int effect) {
@@ -146,6 +92,28 @@ static inline void receivedCallback(uint32_t from, String& msg) {
   }
 }
 
+void setup() {
+  nodecount = mesh.getNodeList(true).size();
+  Serial.begin(115200);
+
+  //mesh.setDebugMsgTypes(ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE);
+  mesh.setDebugMsgTypes(ERROR | SYNC | STARTUP);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6, 1);
+  mesh.onReceive(&receivedCallback);
+  mesh.setContainsRoot(false);
+  mesh.onChangedConnections(&ChangedConnectionsCallback);
+  mesh.initOTAReceive("otareceiver");
+  userScheduler.addTask(taskLedAnimation);
+  taskLedAnimation.enable();
+  //WiFi.setTxPower(WIFI_POWER_2dBm);
+
+  leds_init();
+  gpio_init();
+}
+
+void loop() {
+  mesh.update();
+}
 
 static inline void mesh_announce_alarm(uint32_t start_time) {
   sprintf(buffer, "A %u %d", start_time, 0);
@@ -162,3 +130,45 @@ static inline void mesh_announce_party(uint32_t start_time) {
   repeat = true;
   repeat_time = millis();
 }
+
+static inline bool check_queue_time(void) {
+  if (mesh.getNodeTime() - queue_time < UINT32_MAX / 2)
+    return true;
+  return false;
+}
+
+static void main_loop(void) {
+
+  int result = gpio_update(mesh.getNodeList(true).size());
+
+  if (result == GPIO_EVENT_ALARM)
+    mesh_announce_alarm(mesh.getNodeTime() + BROADCAST_DELAY);
+  else if (result == GPIO_EVENT_PARTY)
+    mesh_announce_party(mesh.getNodeTime() + BROADCAST_DELAY);
+
+  if (queued_mode == GLOBAL_MODE_PARTY && check_queue_time()) {
+    leds_set_intro();
+    leds_effect_change_offset(queued_data + 1);  //increment the effect
+    global_mode = GLOBAL_MODE_PARTY;
+    queued_mode = GLOBAL_MODE_NONE;
+  }
+
+  if (queued_mode == GLOBAL_MODE_ALARM && check_queue_time()) {
+    leds_set_intro();
+    global_mode = GLOBAL_MODE_ALARM;
+    queued_mode = GLOBAL_MODE_NONE;
+  }
+
+  if (leds_update(global_mode)) {
+    global_mode = GLOBAL_MODE_OFF;
+    gpio_vibe_request(1, GPIO_VIBE_SHORT);
+  }
+
+  if (repeat && millis() - repeat_time > 50) {
+    mesh.sendBroadcast(buffer, false);
+    repeat = false;
+  }
+}
+
+
+
