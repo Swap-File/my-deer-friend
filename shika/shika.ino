@@ -4,7 +4,7 @@
 #include "gpio.h"
 #include "leds.h"
 
-#define BROADCAST_DELAY 200  // 200 ms delay to handle latency across mesh (Adjust as needed)
+#define BROADCAST_DELAY 500  // 500 ms delay to handle latency across mesh (Adjust as needed)
 
 painlessMesh mesh;
 SimpleList<uint32_t> nodes;
