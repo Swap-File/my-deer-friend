@@ -10,11 +10,32 @@
 
 #define OTA_PART_SIZE 1024 // How many bytes to send per OTA data packet
 
+#define BROADCAST_DELAY 500 // 500 ms delay to handle latency across mesh (Adjust as needed)
+
 painlessMesh mesh;
 Scheduler userScheduler;
 int totalsize = 0;
 uint32_t clients[MAX_NODES] = {0};
 int progress[MAX_NODES] = {0};
+
+int mesh_nodes(void)
+{
+    return mesh.getNodeList(false).size();
+}
+
+void mesh_update(void)
+{
+    mesh.update();
+}
+
+char buffer[50];
+
+void mesh_announce_buck(char *ch)
+{
+    sprintf(buffer, "B %u %s", mesh.getNodeTime() + BROADCAST_DELAY, ch);
+    Serial.println(buffer);
+    mesh.sendBroadcast(buffer, true);
+}
 
 void ChangedConnectionsCallback()
 {
@@ -73,13 +94,12 @@ bool mesh_init(void)
 
     mesh.initOTASend(
         [](painlessmesh::plugin::ota::DataRequest pkg,
-                 char *buffer)
+           char *buffer)
         {
-    
             // fill the buffer with the requested data packet from the node.
-            entry.seek(OTA_PART_SIZE * pkg.partNo,SeekSet );
+            entry.seek(OTA_PART_SIZE * pkg.partNo, SeekSet);
             entry.readBytes(buffer, OTA_PART_SIZE);
-     
+
             for (int i = 0; i < MAX_NODES; i++)
             {
 
@@ -95,7 +115,7 @@ bool mesh_init(void)
                     break;
                 }
             }
-     
+
             // The buffer can hold OTA_PART_SIZE bytes, but the last packet may
             // not be that long. Return the actual size of the packet.
             return min((unsigned)OTA_PART_SIZE, entry.size() - (OTA_PART_SIZE * pkg.partNo));

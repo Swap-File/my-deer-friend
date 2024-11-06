@@ -1,2 +1,2 @@
-bool render_update(void);
+bool render_update(int page,int selection);
 void render_init(void);

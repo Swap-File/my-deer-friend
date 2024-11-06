@@ -6,7 +6,6 @@
 #include "mesh.h"
 
 extern Scheduler userScheduler;
-extern painlessMesh mesh;
 extern int totalsize;
 extern uint32_t clients[];
 extern int progress[];
@@ -33,12 +32,11 @@ void fps_counter(void)
       Serial.println(" ");
     }
   }
-  Serial.println(" ");
 
   Serial.print("Total Nodes Seen: ");
   Serial.println(nodecount);
   Serial.print("Nodes Online Now: ");
-  Serial.println(mesh.getNodeList(false).size());
+  Serial.println(mesh_nodes());
 
   Serial.print("UI FPS: ");
   Serial.println(ui_fps);
@@ -49,10 +47,27 @@ void fps_counter(void)
   main_fps = 0;
 }
 
+char serial_text[100] = "";
+int serial_index = 0;
+
 void ui_loop(void)
 {
   ui_update();
   ui_fps++;
+
+  if (Serial.available())
+  {
+    serial_text[serial_index] = Serial.read();
+    if (serial_text[serial_index] == '\n')
+    {
+      mesh_announce_buck(serial_text);
+      serial_index = 0;
+    }
+    else
+    {
+      serial_index++;
+    }
+  }
 }
 
 Task taskFPS(1000UL, TASK_FOREVER, &fps_counter);
@@ -60,9 +75,10 @@ Task taskUI(20UL, TASK_FOREVER, &ui_loop);
 
 void setup()
 {
+  ui_init();
   Serial.begin(115200);
   mesh_init();
-  ui_init();
+  
   userScheduler.addTask(taskFPS);
   taskFPS.enable();
   userScheduler.addTask(taskUI);
@@ -71,6 +87,6 @@ void setup()
 
 void loop()
 {
-  mesh.update();
+  mesh_update();
   main_fps++;
 };

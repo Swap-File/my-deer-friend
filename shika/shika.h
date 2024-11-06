@@ -16,7 +16,7 @@
 #define GLOBAL_MODE_OFF 0
 #define GLOBAL_MODE_ALARM 1
 #define GLOBAL_MODE_PARTY 2
-
+#define GLOBAL_MODE_BUCK 3
 
 uint32_t get_millisecond_timer(void);
 
