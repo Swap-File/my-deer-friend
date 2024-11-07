@@ -54,20 +54,6 @@ void ui_loop(void)
 {
   ui_update();
   ui_fps++;
-
-  if (Serial.available())
-  {
-    serial_text[serial_index] = Serial.read();
-    if (serial_text[serial_index] == '\n')
-    {
-      mesh_announce_buck(serial_text);
-      serial_index = 0;
-    }
-    else
-    {
-      serial_index++;
-    }
-  }
 }
 
 Task taskFPS(1000UL, TASK_FOREVER, &fps_counter);
@@ -75,10 +61,10 @@ Task taskUI(20UL, TASK_FOREVER, &ui_loop);
 
 void setup()
 {
-  ui_init();
   Serial.begin(115200);
+  ui_init();
   mesh_init();
-  
+
   userScheduler.addTask(taskFPS);
   taskFPS.enable();
   userScheduler.addTask(taskUI);

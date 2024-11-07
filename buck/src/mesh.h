@@ -6,5 +6,5 @@
 int mesh_nodes(void);
 bool mesh_init(void);
 void mesh_update(void);
-void mesh_announce_buck(char * ch);
+void mesh_announce_buck(char letter,char *ch);
 #endif

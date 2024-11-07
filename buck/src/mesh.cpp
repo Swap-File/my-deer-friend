@@ -30,11 +30,11 @@ void mesh_update(void)
 
 char buffer[50];
 
-void mesh_announce_buck(char *ch)
+void mesh_announce_buck(char letter,char *ch)
 {
-    sprintf(buffer, "B %u %s", mesh.getNodeTime() + BROADCAST_DELAY, ch);
+    sprintf(buffer, "%c %u %s",letter, mesh.getNodeTime() + BROADCAST_DELAY, ch);
     Serial.println(buffer);
-    mesh.sendBroadcast(buffer, true);
+    mesh.sendBroadcast(buffer, false);
 }
 
 void ChangedConnectionsCallback()

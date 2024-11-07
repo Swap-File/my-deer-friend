@@ -114,7 +114,6 @@ void leds_effect_change_offset(int offset)
 void led_reset()
 {
   led_effect_offset = 0;
-
   led_time_offset = 0;
 }
 
@@ -134,7 +133,7 @@ bool leds_update(int global_mode)
   {
     // set overlay to a flash effect and then immediately change to the chosen effect
     overlay_color = CRGB(255, 255, 255);
-    intro = false;
+
     for (int i = 0; i < NUM_LED_EFFECTS; i++)
     {
       if (mode == i)
@@ -308,7 +307,7 @@ bool leds_update(int global_mode)
     leds_right[15 - i] = leds[i] + overlay_color;
     leds_left[15 - i] = leds[NUM_LEDS - 1 - i] + overlay_color;
   }
-
+  intro = false;
   overlay_color.fadeToBlackBy(20);
 
   FastLED.show();

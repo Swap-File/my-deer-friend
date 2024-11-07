@@ -22,10 +22,14 @@ uint16_t *sprPtr[2];
 
 extern int pending_effect;
 extern bool pending_rainbow;
-extern uint32_t sent_time;
+
 extern int pending_color;
 
 uint16_t colors_tft_array[8] = {TFT_RED, TFT_ORANGE, TFT_YELLOW, TFT_GREEN, TFT_CYAN, TFT_BLUE, TFT_PURPLE, TFT_MAGENTA};
+
+char color_names[9][10] = {"Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Pink", "Rainbow"};
+
+float mcutemp = 70;
 
 void battery_text(char *lineOne)
 {
@@ -36,7 +40,7 @@ void battery_text(char *lineOne)
     if (battery_voltage > 4.5)
       sprintf(lineOne, "Charging");
     else
-      sprintf(lineOne, "Battery %.2f", battery_voltage);
+      sprintf(lineOne, "Battery: %.2fV", battery_voltage);
   }
 }
 
@@ -55,53 +59,26 @@ void render_top_line(int page, int selection)
 {
   spr[0].fillSprite(TFT_BLACK);
   spr[0].setTextColor(TFT_BROWN);
-  if (page == 0)
+  if (page == 0 || page == 1)
   {
     char lineOne[30] = ""; // First line of display
-    spr[0].setTextSize(2);
-    spr[0].setTextDatum(MC_DATUM);
-    char temp[30] = ""; // First line of display
-    battery_text(temp);
 
-    if (selection == -1)
-      sprintf(lineOne, "> %s <", temp);
-    else
-      sprintf(lineOne, "%s", temp);
-
+    sprintf(lineOne, "Nodes: %d of %d", mesh_nodes(), getnodecount());
     spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
-
-    if (millis() - sent_time < 500)
-      spr[0].setTextColor(TFT_GREEN);
-    else
-      spr[0].setTextColor(TFT_BROWN);
-    if (selection == 0)
-      sprintf(lineOne, "> Nodes: %d of %d <", mesh_nodes(), getnodecount());
-    else
-      sprintf(lineOne, "Nodes: %d of %d", mesh_nodes(), getnodecount());
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
-    spr[0].setTextColor(TFT_BROWN);
-
-    if (selection == 1)
-      sprintf(lineOne, "> Effect %d <", pending_effect);
-    else
-      sprintf(lineOne, "Effect %d", pending_effect);
-
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
-  }
-  if (page == 1)
-  {
-    char lineOne[30] = ""; // First line of display
-    spr[0].setTextSize(2);
-    spr[0].setTextDatum(MC_DATUM);
 
     battery_text(lineOne);
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
-
-    sprintf(lineOne, "Nodes Seen: %d", getnodecount());
     spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
 
-    sprintf(lineOne, "Nodes Online: %d", mesh_nodes());
+    sprintf(lineOne, "CPU: %.1f÷F", (mcutemp * 1.8) + 32);
     spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
+  }
+  else if (page == 2)
+  {
+    spr[0].setCursor(0, 0);
+    spr[0].println("  \\__`\\     |'__/ ");
+    spr[0].println("    `_\\\\   //_'   ");
+    spr[0].println("    _.,:---;,._   ");
+    spr[0].println("    \\_:     :_/   ");
   }
   tft.pushImageDMA(0, 0 * DHEIGHT / 2, DWIDTH, DHEIGHT / 2, sprPtr[0]);
 }
@@ -131,47 +108,41 @@ void render_bottom_line(int page, int selection)
   spr[1].fillSprite(TFT_BLACK);
   spr[1].setTextColor(TFT_BROWN);
   if (page == 0)
-    {
-      char lineOne[30] = ""; // First line of display
-      spr[1].setTextSize(2);
-      spr[1].setTextDatum(MC_DATUM);
-
-      spr[1].setTextColor(colors_tft_array[pending_color]);
-
-      if (selection == 2)
-        sprintf(lineOne, "> Color <");
-      else
-        sprintf(lineOne, "Color");
-
-      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
-      spr[1].setTextColor(TFT_BROWN);
-
-      if (pending_rainbow)
-        spr[1].setTextColor(colors_tft_array[(millis() >> 9) % 8]);
-      else
-        spr[1].setTextColor(TFT_BROWN);
-
-      if (selection == 3)
-        sprintf(lineOne, "> Rainbow <");
-      else
-        sprintf(lineOne, "Rainbow");
-      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
-
-      spr[1].setTextColor(TFT_BROWN);
-
-      if (selection == 4)
-        sprintf(lineOne, "> Speed <");
-      else
-        sprintf(lineOne, "Speed");
-      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
-      spr[1].setTextColor(TFT_BROWN);
-    }
-  if (page == 1)
   {
     char lineOne[30] = ""; // First line of display
 
-    spr[1].setTextSize(2);
-    spr[1].setTextDatum(MC_DATUM);
+    if (selection == 1)
+      sprintf(lineOne, "> Effect %d <", pending_effect);
+    else
+      sprintf(lineOne, "Effect %d", pending_effect);
+
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
+
+    if (selection == 2)
+    {
+      if (pending_color == 8)
+        spr[1].setTextColor(colors_tft_array[(millis() >> 8) % 8]);
+      else
+        spr[1].setTextColor(colors_tft_array[pending_color]);
+
+      sprintf(lineOne, "> %s <", color_names[pending_color]);
+    }
+    else
+      sprintf(lineOne, "%s", color_names[pending_color]);
+
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
+    spr[1].setTextColor(TFT_BROWN);
+
+    if (selection == 3)
+      sprintf(lineOne, "> Speed <");
+    else
+      sprintf(lineOne, "Speed");
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
+    spr[1].setTextColor(TFT_BROWN);
+  }
+  else if (page == 1)
+  {
+    char lineOne[30] = ""; // First line of display
 
     strcat(lineOne, calc_percent(0));
     strcat(lineOne, calc_percent(1));
@@ -193,42 +164,47 @@ void render_bottom_line(int page, int selection)
     strcat(lineOne, calc_percent(11));
     spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17); // bottom
   }
+  else if (page == 2)
+  {
+    spr[1].setCursor(0, 0);
+    spr[1].println("      |@. .@|     ");
+    spr[1].println("      |     |     ");
+    spr[1].println("       \\.-./      ");
+    spr[1].println("        `-'       ");
+  }
   tft.pushImageDMA(0, 1 * DHEIGHT / 2, DWIDTH, DHEIGHT / 2, sprPtr[1]);
 }
 
 void render_init(void)
 {
   tft.init();
-
   tft.fillScreen(TFT_BLACK);
   tft.setRotation(1); // USB port on right
-
-  tft.setTextColor(TFT_BROWN);
-  tft.setTextSize(2);
-  tft.setTextDatum(MC_DATUM);
-
-  // tft.println("   /|       |\\   ");
-  // tft.println("`__\\\\       //__'");
-  // tft.println("   ||      ||    ");
-  tft.println("   \\__`\\     |'__/ ");
-  tft.println("     `_\\\\   //_'   ");
-  tft.println("     _.,:---;,._   ");
-  tft.println("     \\_:     :_/   ");
-  tft.println("       |@. .@|     ");
-  tft.println("       |     |     ");
-  tft.println("        \\.-./      ");
-  tft.println("         `-'       ");
-
   tft.initDMA();
   // Create the 2 sprites, each is half the size of the screen
   sprPtr[0] = (uint16_t *)spr[0].createSprite(DWIDTH, DHEIGHT / 2);
   sprPtr[1] = (uint16_t *)spr[1].createSprite(DWIDTH, DHEIGHT / 2);
-
+  spr[0].setTextSize(2);
+  spr[1].setTextSize(2);
+  spr[0].setTextDatum(MC_DATUM);
+  spr[1].setTextDatum(MC_DATUM);
   tft.startWrite(); // TFT chip select held low permanently
+
+  while (tft.dmaBusy())
+  {
+  }
+  render_top_line(2, 2);
+  while (tft.dmaBusy())
+  {
+  }
+  render_bottom_line(2, 2);
+
+  mcutemp = temperatureRead();
 }
 
 bool render_update(int page, int selection)
 {
+  mcutemp = mcutemp * .95 + temperatureRead() * .05;
 
   if (!tft.dmaBusy())
   {
