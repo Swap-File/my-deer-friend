@@ -4,7 +4,7 @@
 #include "gpio.h"
 #include "leds.h"
 
-#define BROADCAST_DELAY 500 // 500 ms delay to handle latency across mesh (Adjust as needed)
+#define BROADCAST_DELAY 1000 // 500 ms delay to handle latency across mesh (Adjust as needed)
 
 painlessMesh mesh;
 SimpleList<uint32_t> nodes;
@@ -106,8 +106,22 @@ static inline void logic_buck(uint32_t time, int effect)
   {
     gpio_vibe_request(2, GPIO_VIBE_SHORT);
     queue_time = time;
-    queued_buck_mode= effect;
+    queued_buck_mode = effect;
     queued_mode = GLOBAL_MODE_BUCK;
+  }
+  else
+  {
+    Serial.println("Suppressing");
+  }
+}
+static inline void logic_palette(uint32_t time, int effect)
+{
+  if (queue_time != time)
+  {
+    // gpio_vibe_request(2, GPIO_VIBE_SHORT);
+    queue_time = time;
+    queued_buck_mode = effect;
+    queued_mode = GLOBAL_MODE_PALETTE;
   }
   else
   {
@@ -140,13 +154,19 @@ static inline void receivedCallback(uint32_t from, String &msg)
 
   int h;
 
-  if (sscanf(msg.c_str(), "%c %u %d %d", &mode_tmp, &start_time, &mode, &h) == 4){
+  if (sscanf(msg.c_str(), "%c %u %d %d", &mode_tmp, &start_time, &mode, &h) == 4)
+  {
 
-    if (mode_tmp == 'B'){
-        queued_buck_color = h;
-        logic_buck(start_time, mode);
+    if (mode_tmp == 'B')
+    {
+      queued_buck_color = h;
+      logic_buck(start_time, mode);
     }
+    if (mode_tmp == 'C')
+    {
 
+      logic_palette(start_time, mode);
+    }
     return;
   }
 
@@ -240,17 +260,18 @@ static void main_loop(void)
     queued_mode = GLOBAL_MODE_NONE;
   }
 
-
   if (queued_mode == GLOBAL_MODE_BUCK && check_queue_time())
   {
-    leds_set_intro();
+    // dont set intro if only a color change?
+
     uint32_t node_speed = 1000;
-    if (queued_buck_mode >= 100){
-      uint32_t temp = queued_buck_mode % 100;
-      node_speed = queued_buck_mode /100;
-      queued_buck_mode = temp;
+    if (queued_buck_mode >= 100)
+    {
+      node_speed = queued_buck_mode / 100;
+      queued_buck_mode = queued_buck_mode % 100;
     }
-    leds_set_buck(queued_buck_mode,node_place,node_count, queued_buck_color, node_speed);
+
+    leds_set_buck(queued_buck_mode, node_place, node_count, queued_buck_color, node_speed);
 
     global_mode = GLOBAL_MODE_BUCK;
     queued_mode = GLOBAL_MODE_NONE;
@@ -260,6 +281,15 @@ static void main_loop(void)
   {
     leds_set_intro();
     global_mode = GLOBAL_MODE_ALARM;
+    queued_mode = GLOBAL_MODE_NONE;
+  }
+
+  if (queued_mode == GLOBAL_MODE_PALETTE && check_queue_time())
+  {
+    if (queued_buck_mode == 66)
+      ESP.restart();
+    leds_set_intro();
+    leds_palette(queued_buck_mode);
     queued_mode = GLOBAL_MODE_NONE;
   }
 

@@ -10,7 +10,7 @@
 
 #define OTA_PART_SIZE 1024 // How many bytes to send per OTA data packet
 
-#define BROADCAST_DELAY 500 // 500 ms delay to handle latency across mesh (Adjust as needed)
+#define BROADCAST_DELAY 1000 // 500 ms delay to handle latency across mesh (Adjust as needed)
 
 painlessMesh mesh;
 Scheduler userScheduler;

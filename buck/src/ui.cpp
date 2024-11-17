@@ -3,8 +3,10 @@
 #include "mesh.h"
 
 float battery_voltage = 0;
-static int page = 2;
-static int selection = 1;
+static int page = PAGE_LOGO;
+static int selection_ota = 1;
+static int selection_effect = 1;
+
 #define BUTTON1_PIN 35
 #define BUTTON2_PIN 0
 #define BATTERY_PIN 34
@@ -13,21 +15,35 @@ static int selection = 1;
 #define BUTTON_MAX 1
 
 #define LONG_PRESS_TIME_MS 400
-
+int reboot_counter = 0;
 int pending_effect = 0;
 int pending_color = 8;
-
+int palette_type = 0;
+int alarm_or_party = 0;
 static int return_page = 0;
 static uint32_t send_time = 0;
 static bool sending = false;
 
 static uint8_t colors_fastled_array[8] = {0, 32, 64, 96, 128, 160, 192, 224};
+static int speed_array[8] = {20, 50, 100, 200, 450, 650, 800, 1000};
+
+int speed_idx = 0;
 
 static float get_voltage(void)
 {
     return (((float)(analogRead(BATTERY_PIN)) / 4095.0) * 2.0 * 3.3 * (1100 / 1000.0));
 }
-
+static void mesh_reboot(void)
+{
+    send_time = millis();
+    sending = true;
+    page = PAGE_LOGO;
+    return_page = PAGE_EFFECT;
+    char data[10];
+    sprintf(data, "66 0");
+    mesh_announce_buck('C', data);
+    reboot_counter = 0;
+}
 void ui_init(void)
 {
     pinMode(BUTTON1_PIN, INPUT);
@@ -141,78 +157,143 @@ void ui_update(void)
 
     if (button_1_short_press || button_2_short_press)
     {
-        if (page == 2)
-            page = 0;
+        if (page == PAGE_LOGO)
+            page = return_page;
     }
 
     if (button_1_short_press)
     {
-        if (page == 1)
+        reboot_counter = 0;
+        
+        if (page == PAGE_OTA)
         {
-            send_time = millis();
-            sending = true;
-            page = 2;
-            return_page = 1;
-            char data[] = "0";
-            mesh_announce_buck('P', data);
+
+            if (selection_ota == 1)
+            {
+                palette_type++;
+                if (palette_type > 10)
+                    palette_type = 0;
+            }
+            else if (selection_ota == 2)
+            {
+                alarm_or_party++;
+                if (alarm_or_party > 1)
+                    alarm_or_party = 0;
+            }
         }
 
-        if (page == 0)
+        if (page == PAGE_EFFECT)
         {
-            if (selection == -1)
-                page = 1;
-            if (selection == 1)
+
+            if (selection_effect == 1)
             {
                 pending_effect++;
-                if (pending_effect > 5)
+                if (pending_effect > 6)
                     pending_effect = 0;
+                // default speeds
+                if (pending_effect == 1 || pending_effect == 2 || pending_effect == 3)
+                    speed_idx = 4;
+                if (pending_effect == 4)
+                    speed_idx = 5;
             }
-            if (selection == 2)
+            else if (selection_effect == 2)
             {
                 pending_color++;
                 if (pending_color > 8)
                     pending_color = 0;
+            }
+            else if (selection_effect == 3)
+            {
+                speed_idx--;
+                if (speed_idx < 0)
+                    speed_idx = 7;
             }
         }
     }
 
     if (button_2_short_press)
     {
-        if (page == 0)
+
+        if (page == PAGE_EFFECT)
         {
-            selection++;
-            if (selection > 3)
-                selection = 1;
+            reboot_counter++;
+            selection_effect++;
+            if (selection_effect > 3)
+                selection_effect = 1;
+        }
+        if (page == PAGE_OTA)
+        {
+            selection_ota++;
+            if (selection_ota > 2)
+                selection_ota = 1;
         }
     }
 
     if (button_2_long_press)
     {
-        if (page == 2)
-            page = 0;
-        if (page == 0)
-            page = 1;
-        else if (page == 1)
-            page = 0;
+        reboot_counter = 0;
+        if (page == PAGE_LOGO)
+            page = PAGE_EFFECT;
+        if (page == PAGE_EFFECT)
+            page = PAGE_OTA;
+        else if (page == PAGE_OTA)
+            page = PAGE_EFFECT;
     }
 
     if (button_1_long_press)
     {
-        if (page == 1)
+
+        if (reboot_counter >= 10)
+            mesh_reboot();
+
+        reboot_counter = 0;
+
+        if (page == PAGE_OTA)
         {
-            send_time = millis();
-            sending = true;
-            page = 2;
-            return_page = 1;
-             char data[] = "0";
-            mesh_announce_buck('A', data);
+            if (selection_ota == 1)
+            {
+                send_time = millis();
+                sending = true;
+                page = PAGE_LOGO;
+                return_page = PAGE_OTA;
+                char data[10];
+                sprintf(data, "%d 0", palette_type);
+                mesh_announce_buck('C', data);
+            }
+            if (selection_ota == 2)
+            {
+                if (alarm_or_party == 0)
+                {
+
+                    send_time = millis();
+                    sending = true;
+                    page = PAGE_LOGO;
+                    return_page = PAGE_OTA;
+                    char data[] = "0";
+
+                    static int party_rotate = 0;
+                    sprintf(data, "%d", party_rotate++);
+                    if (party_rotate > 5) // this needs to match the effects in the device
+                        party_rotate = 0;
+                    mesh_announce_buck('P', data);
+                }
+                if (alarm_or_party == 1)
+                {
+                    send_time = millis();
+                    sending = true;
+                    page = PAGE_LOGO;
+                    return_page = PAGE_OTA;
+                    char data[] = "0";
+                    mesh_announce_buck('A', data);
+                }
+            }
         }
 
-        if (page == 0)
+        if (page == PAGE_EFFECT)
         {
             char serial_text[50];
 
-            int mode = 50000;
+            int mode = speed_array[speed_idx] * 100;
 
             int data_to_send;
 
@@ -223,9 +304,9 @@ void ui_update(void)
 
             send_time = millis();
             sending = true;
-            page = 2;
-            return_page = 0;
-            sprintf(serial_text, "%d %d", pending_effect + mode, data_to_send);
+            page = PAGE_LOGO;
+            return_page = PAGE_EFFECT;
+            sprintf(serial_text, "%d %d", pending_effect + mode, data_to_send); // implement effect advancing
             mesh_announce_buck('B', serial_text);
         }
     }
@@ -240,5 +321,5 @@ void ui_update(void)
             page = return_page;
         }
     }
-    render_update(page, selection);
+    render_update(page, selection_effect, selection_ota);
 }

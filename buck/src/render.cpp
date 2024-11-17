@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include "mesh.h"
+#include "render.h"
 
 // TODO OLED burn in prevention by randomly offsetting the render area on bootup
 #define DWIDTH 240
@@ -10,7 +11,8 @@ extern float battery_voltage;
 extern int totalsize;
 extern uint32_t clients[];
 extern int progress[];
-
+extern int speed_idx;
+extern int alarm_or_party;
 // Library instance
 TFT_eSPI tft = TFT_eSPI();
 
@@ -22,12 +24,14 @@ uint16_t *sprPtr[2];
 
 extern int pending_effect;
 extern bool pending_rainbow;
-
+extern int palette_type;
 extern int pending_color;
+extern int reboot_counter;
 
 uint16_t colors_tft_array[8] = {TFT_RED, TFT_ORANGE, TFT_YELLOW, TFT_GREEN, TFT_CYAN, TFT_BLUE, TFT_PURPLE, TFT_MAGENTA};
 
 char color_names[9][10] = {"Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Pink", "Rainbow"};
+char palette_names[12][10] = {"HSV", "Xmas1", "Ocean", "Party", "Forest", "Rainbow1", "Heat", "Rainbow2", "Cloud", "Lava", "Xmass2"};
 
 float mcutemp = 70;
 
@@ -55,30 +59,38 @@ int getnodecount(void)
   return nodecount;
 }
 
-void render_top_line(int page, int selection)
+void render_top_line(int page, int selection_effect, int selection_ota)
 {
   spr[0].fillSprite(TFT_BLACK);
   spr[0].setTextColor(TFT_BROWN);
-  if (page == 0 || page == 1)
+  if (page == PAGE_EFFECT || page == PAGE_OTA)
   {
     char lineOne[30] = ""; // First line of display
 
     sprintf(lineOne, "Nodes: %d of %d", mesh_nodes(), getnodecount());
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
+    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 8 - 16);
 
     battery_text(lineOne);
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
+    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 8);
 
     sprintf(lineOne, "CPU: %.1f÷F", (mcutemp * 1.8) + 32);
-    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
+    spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8);
+
+    if (page == PAGE_OTA)
+    {
+      if (selection_ota == 1)
+        sprintf(lineOne, "> %s <", palette_names[palette_type]);
+      else
+        sprintf(lineOne, "%s", palette_names[palette_type]);
+      spr[0].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8 + 16);
+    }
   }
-  else if (page == 2)
+  else if (page == PAGE_LOGO)
   {
-    spr[0].setCursor(0, 0);
-    spr[0].println("  \\__`\\     |'__/ ");
-    spr[0].println("    `_\\\\   //_'   ");
-    spr[0].println("    _.,:---;,._   ");
-    spr[0].println("    \\_:     :_/   ");
+    spr[0].drawString(" \\__`\\     |'__/ ", DWIDTH / 2, DHEIGHT / 4 - 8 - 16);
+    spr[0].drawString("   `_\\\\   //_'   ", DWIDTH / 2, DHEIGHT / 4 - 8);
+    spr[0].drawString("   _.,:---;,._   ", DWIDTH / 2, DHEIGHT / 4 + 8);
+    spr[0].drawString("   \\_:     :_/   ", DWIDTH / 2, DHEIGHT / 4 + 8 + 16);
   }
   tft.pushImageDMA(0, 0 * DHEIGHT / 2, DWIDTH, DHEIGHT / 2, sprPtr[0]);
 }
@@ -101,76 +113,103 @@ char *calc_percent(int index)
   return temp_str;
 }
 
-void render_bottom_line(int page, int selection)
+void render_bottom_line(int page, int selection_effect, int selection_ota)
 {
   // TODO Colorize to amber (or something else) to match your dash
 
   spr[1].fillSprite(TFT_BLACK);
   spr[1].setTextColor(TFT_BROWN);
-  if (page == 0)
+
+  if (page == PAGE_EFFECT)
   {
     char lineOne[30] = ""; // First line of display
-
-    if (selection == 1)
-      sprintf(lineOne, "> Effect %d <", pending_effect);
-    else
-      sprintf(lineOne, "Effect %d", pending_effect);
-
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17);
-
-    if (selection == 2)
+    if (reboot_counter < 10)
     {
-      if (pending_color == 8)
-        spr[1].setTextColor(colors_tft_array[(millis() >> 8) % 8]);
+      if (selection_effect == 1)
+        sprintf(lineOne, "> Effect %d <", pending_effect);
       else
-        spr[1].setTextColor(colors_tft_array[pending_color]);
+        sprintf(lineOne, "Effect %d", pending_effect);
 
-      sprintf(lineOne, "> %s <", color_names[pending_color]);
+      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 8);
+
+      if (selection_effect == 2)
+      {
+        if (pending_color == 8)
+          spr[1].setTextColor(colors_tft_array[(millis() >> 8) % 8]);
+        else
+          spr[1].setTextColor(colors_tft_array[pending_color]);
+
+        sprintf(lineOne, "> %s <", color_names[pending_color]);
+      }
+      else
+        sprintf(lineOne, "%s", color_names[pending_color]);
+
+      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8);
+
+      spr[1].setTextColor(TFT_BROWN);
+
+      if (selection_effect == 3)
+        sprintf(lineOne, "> Speed %d<", speed_idx);
+      else
+        sprintf(lineOne, "Speed %d", speed_idx);
+      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8 + 16);
+      spr[1].setTextColor(TFT_BROWN);
     }
     else
-      sprintf(lineOne, "%s", color_names[pending_color]);
-
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4);
-    spr[1].setTextColor(TFT_BROWN);
-
-    if (selection == 3)
-      sprintf(lineOne, "> Speed <");
-    else
-      sprintf(lineOne, "Speed");
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17);
-    spr[1].setTextColor(TFT_BROWN);
+    {
+      sprintf(lineOne, "REBOOT?", speed_idx);
+      spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8 + 16);
+      spr[1].setTextColor(TFT_BROWN);
+    }
   }
-  else if (page == 1)
+  else if (page == PAGE_OTA)
   {
     char lineOne[30] = ""; // First line of display
 
+    if (selection_ota == 2)
+    {
+      if (alarm_or_party == 0)
+        sprintf(lineOne, "> Party <", alarm_or_party);
+      else if (alarm_or_party == 1)
+        sprintf(lineOne, "> Alarm <", alarm_or_party);
+    }
+    else
+    {
+      if (alarm_or_party == 0)
+        sprintf(lineOne, "Party", alarm_or_party);
+      else if (alarm_or_party == 1)
+        sprintf(lineOne, "Alarm", alarm_or_party);
+    }
+
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 8 - 16); // top
+
+    sprintf(lineOne, "");
     strcat(lineOne, calc_percent(0));
     strcat(lineOne, calc_percent(1));
     strcat(lineOne, calc_percent(2));
     strcat(lineOne, calc_percent(3));
 
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 17); // top
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 - 8); // top
 
     sprintf(lineOne, "");
     strcat(lineOne, calc_percent(4));
     strcat(lineOne, calc_percent(5));
     strcat(lineOne, calc_percent(6));
     strcat(lineOne, calc_percent(7));
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4); // middle
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8); // middle
     sprintf(lineOne, "");
     strcat(lineOne, calc_percent(8));
     strcat(lineOne, calc_percent(9));
     strcat(lineOne, calc_percent(10));
     strcat(lineOne, calc_percent(11));
-    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 17); // bottom
+    spr[1].drawString(lineOne, DWIDTH / 2, DHEIGHT / 4 + 8 + 16); // bottom
   }
-  else if (page == 2)
+  else if (page == PAGE_LOGO)
   {
-    spr[1].setCursor(0, 0);
-    spr[1].println("      |@. .@|     ");
-    spr[1].println("      |     |     ");
-    spr[1].println("       \\.-./      ");
-    spr[1].println("        `-'       ");
+    spr[1].drawString("     |@. .@|     ", DWIDTH / 2, DHEIGHT / 4 - 8 - 16);
+    spr[1].drawString("     |     |     ", DWIDTH / 2, DHEIGHT / 4 - 8);
+    spr[1].drawString("      \\.-./      ", DWIDTH / 2, DHEIGHT / 4 + 8);
+    spr[1].drawString("       `-'       ", DWIDTH / 2, DHEIGHT / 4 + 8 + 16);
   }
   tft.pushImageDMA(0, 1 * DHEIGHT / 2, DWIDTH, DHEIGHT / 2, sprPtr[1]);
 }
@@ -193,16 +232,16 @@ void render_init(void)
   while (tft.dmaBusy())
   {
   }
-  render_top_line(2, 2);
+  render_top_line(PAGE_LOGO, 1, 1);
   while (tft.dmaBusy())
   {
   }
-  render_bottom_line(2, 2);
+  render_bottom_line(PAGE_LOGO, 1, 1);
 
   mcutemp = temperatureRead();
 }
 
-bool render_update(int page, int selection)
+bool render_update(int page, int selection_effect, int selection_ota)
 {
   mcutemp = mcutemp * .95 + temperatureRead() * .05;
 
@@ -211,9 +250,9 @@ bool render_update(int page, int selection)
     static bool alternate_render_line = true;
 
     if (alternate_render_line)
-      render_top_line(page, selection);
+      render_top_line(page, selection_effect, selection_ota);
     else
-      render_bottom_line(page, selection);
+      render_bottom_line(page, selection_effect, selection_ota);
 
     alternate_render_line = !alternate_render_line;
     return true;

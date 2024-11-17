@@ -10,4 +10,6 @@ void leds_effect_change_offset(int offset);
 int leds_get_effect_offset(void);
 void leds_set_intro(void);
 void led_reset(void);
+void leds_palette(int p);
+
 #endif

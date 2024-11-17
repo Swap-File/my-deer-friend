@@ -12,6 +12,48 @@
 #define DATA_PIN_LEFT D8
 #define DATA_PIN_RIGHT D1
 
+CRGBPalette16 xmass(
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Green,
+
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Green);
+
+CRGBPalette16 xmass2(
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Red,
+    CRGB::Red,
+
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Red,
+    CRGB::Red,
+    CRGB::Green,
+    CRGB::Green,
+    CRGB::Red,
+    CRGB::Red);
+
+CRGBPalette16 palette_order[] = {RainbowColors_p, xmass, OceanColors_p, PartyColors_p, ForestColors_p, RainbowColors_p, HeatColors_p, RainbowStripeColors_p, CloudColors_p, LavaColors_p, xmass2};
+
+int pallet_index = 0;
+
 static CRGB leds5[NUM_LEDS];
 static CRGB leds4[NUM_LEDS];
 static CRGB leds3[NUM_LEDS];
@@ -43,9 +85,15 @@ static int node_count = 0;
 static int buck_hue = 0;
 static uint32_t buck_speed = 1000;
 static int buck_rainbow = 0;
+void leds_palette(int p)
+{
+  pallet_index = p;
+}
 
 void leds_set_buck(int buck_mode_, int node_place_, int node_count_, int h_, uint32_t node_speed_)
 {
+  if (node_buck_mode != buck_mode_ || buck_speed != node_speed_)
+    leds_set_intro();
   node_buck_mode = buck_mode_;
   node_place = node_place_;
   node_count = node_count_;
@@ -67,7 +115,10 @@ static inline void sinelon(CRGB *array)
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy(array, NUM_LEDS, 20);
   int pos = beatsin16(13, 0, NUM_LEDS - 1);
-  array[pos] += CHSV(gHue, 255, 192);
+  if (pallet_index == 0)
+    array[pos] += CHSV(gHue, 255, 192);
+  else
+    array[pos] |= ColorFromPalette(palette_order[pallet_index], gHue);
 }
 
 static inline void sinelon2(CRGB *array)
@@ -75,10 +126,16 @@ static inline void sinelon2(CRGB *array)
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy(array, NUM_LEDS, 20);
   int pos = beatsin16(13, 0, NUM_LEDS - 1);
-  array[pos] += CHSV(gHue, 255, 192);
+  if (pallet_index == 0)
+    array[pos] += CHSV(gHue, 255, 192);
+  else
+    array[pos] |= ColorFromPalette(palette_order[pallet_index], gHue);
 
   pos = beatsin16(13, 0, NUM_LEDS - 1, 0, UINT16_MAX / 2);
-  array[pos] += CHSV(gHue + 127, 255, 192);
+  if (pallet_index == 0)
+    array[pos] += CHSV(gHue + 127, 255, 192);
+  else
+    array[pos] |= ColorFromPalette(palette_order[pallet_index], gHue + 127);
 }
 
 static inline void sinelon3(CRGB *array)
@@ -86,12 +143,30 @@ static inline void sinelon3(CRGB *array)
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy(array, NUM_LEDS, 20);
   int pos = beatsin16(13, 0, NUM_LEDS - 1);
-  array[pos] += CHSV(gHue, 255, 192);
+  if (pallet_index == 0)
+    array[pos] += CHSV(gHue, 255, 192);
+  else
+    array[pos] |= ColorFromPalette(palette_order[pallet_index], gHue);
 
   pos = beatsin16(13, 0, NUM_LEDS - 1, 0, UINT16_MAX / 8);
-  array[pos] += CHSV(gHue + 64, 255, 192);
+  if (pallet_index == 0)
+    array[pos] += CHSV(gHue + 64, 255, 192);
+  else
+    array[pos] |= ColorFromPalette(palette_order[pallet_index], gHue + 64);
 }
 
+static inline void rainbow(CRGB *array)
+{
+  if (pallet_index == 0)
+    fill_rainbow(array, NUM_LEDS, gHue, 7);
+  else
+  {
+    for (int i = 0; i < 32; i++)
+    {
+      array[i] = ColorFromPalette(palette_order[pallet_index], gHue + i * 7);
+    }
+  }
+}
 static inline void juggle(CRGB *array)
 {
   // eight colored dots, weaving in and out of sync with each other
@@ -99,7 +174,10 @@ static inline void juggle(CRGB *array)
   uint8_t dothue = 0;
   for (int i = 0; i < 5; i++)
   {
-    array[beatsin16(i + 7, 0, NUM_LEDS - 1)] |= CHSV(dothue, 200, 255);
+    if (pallet_index == 0)
+      array[beatsin16(i + 7, 0, NUM_LEDS - 1)] |= CHSV(dothue, 200, 255);
+    else
+      array[beatsin16(i + 7, 0, NUM_LEDS - 1)] |= ColorFromPalette(palette_order[pallet_index], dothue);
     dothue += 32;
   }
 }
@@ -145,13 +223,19 @@ bool leds_update(int global_mode)
 
   if (global_mode == GLOBAL_MODE_PARTY)
   {
+    if (pallet_index > 0)
+      buck_rainbow = 1;
+      
     // calculate all effects
-    fill_rainbow(leds0, NUM_LEDS, gHue, 7);
+    rainbow(leds0);
     juggle(leds1);
     sinelon(leds2);
     sinelon2(leds3);
     sinelon3(leds4);
-    fill_solid(leds5, NUM_LEDS, CHSV(gHue, 255, 255));
+    if (pallet_index == 0)
+      fill_solid(leds5, NUM_LEDS, CHSV(gHue, 255, 255));
+    else
+      fill_solid(leds5, NUM_LEDS, ColorFromPalette(palette_order[pallet_index], gHue));
 
     // adjust the mixer
     for (int i = 0; i < NUM_LED_EFFECTS; i++)
@@ -202,7 +286,10 @@ bool leds_update(int global_mode)
     fill_solid(leds, NUM_LEDS, CRGB(pos, 0, 0));
 
     if (pos == 0 && millis() - alarm_start_time > TIME_PER_ALARM)
+    {
+      pallet_index = 0;
       animation_done = true;
+    }
   }
   else if (global_mode == GLOBAL_MODE_BUCK)
   {
@@ -211,15 +298,26 @@ bool leds_update(int global_mode)
     if (node_buck_mode == 0) // debug mode, call out place in the herd
     {
       fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
-      leds[node_place - 1] = CHSV(buck_hue, 255, 255);
-      leds[node_count] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+      if (pallet_index == 0)
+      {
+        leds[node_place - 1] = CHSV(buck_hue, 255, 255);
+        leds[node_count] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+      }
+      else
+      {
+        leds[node_place - 1] = ColorFromPalette(palette_order[pallet_index], buck_hue);
+        leds[node_count] = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+      }
     }
     if (node_buck_mode == 1) // solid color jumping from head to head
     {
       fill_solid(leds, NUM_LEDS, CRGB(0, 0, 0));
       if (active_node == node_place)
       {
-        fill_solid(leds, NUM_LEDS, CHSV(buck_hue + (gHue * buck_rainbow), 255, 255));
+        if (pallet_index == 0)
+          fill_solid(leds, NUM_LEDS, CHSV(buck_hue + (gHue * buck_rainbow), 255, 255));
+        else
+          fill_solid(leds, NUM_LEDS, ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow)));
       }
     }
     if (node_buck_mode == 2) // animated fill jumping from head to head
@@ -232,8 +330,13 @@ bool leds_update(int global_mode)
         {
           if (i < loc)
           {
-            leds[16 + i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
-            leds[15 - i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+            CRGB temp;
+            if (pallet_index == 0)
+              temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+            else
+              temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+            leds[16 + i] = temp;
+            leds[15 - i] = temp;
           }
         }
         loc = qadd8(loc, 1);
@@ -251,8 +354,14 @@ bool leds_update(int global_mode)
         {
           if (i == loc)
           {
-            leds[16 + i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
-            leds[15 - i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+            CRGB temp;
+            if (pallet_index == 0)
+              temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+            else
+              temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+
+            leds[16 + i] = temp;
+            leds[15 - i] = temp;
           }
         }
         loc = qadd8(loc, 1);
@@ -272,8 +381,14 @@ bool leds_update(int global_mode)
           {
             if (i < loc)
             {
-              leds[16 + i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
-              leds[15 - i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+              CRGB temp;
+              if (pallet_index == 0)
+                temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+              else
+                temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+
+              leds[16 + i] = temp;
+              leds[15 - i] = temp;
             }
           }
           else
@@ -282,8 +397,14 @@ bool leds_update(int global_mode)
             int temp_i = (loc - 16);
             if (i >= temp_i)
             {
-              leds[16 + i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
-              leds[15 - i] = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+              CRGB temp;
+              if (pallet_index == 0)
+                temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+              else
+                temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+
+              leds[16 + i] = temp;
+              leds[15 - i] = temp;
             }
           }
         }
@@ -294,7 +415,30 @@ bool leds_update(int global_mode)
     }
     else if (node_buck_mode == 5) // solid color everywhere
     {
-      fill_solid(leds, NUM_LEDS, CHSV(buck_hue + (gHue * buck_rainbow), 255, 255));
+      CRGB temp;
+      if (pallet_index == 0)
+        temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, 255);
+      else
+        temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow));
+
+      fill_solid(leds, NUM_LEDS, temp);
+    }
+    else if (node_buck_mode == 6) // alarm
+    {
+      const int zero_offset = 16;
+      int pos = beatsin16(90 + (1000 - buck_speed), 0, 255 + zero_offset, 0, 3 * UINT16_MAX / 4);
+
+      pos -= zero_offset;
+      if (pos < 0)
+        pos = 0;
+      CRGB temp;
+
+      if (pallet_index == 0)
+        temp = CHSV(buck_hue + (gHue * buck_rainbow), 255, pos);
+      else
+        temp = ColorFromPalette(palette_order[pallet_index], buck_hue + (gHue * buck_rainbow)).fadeToBlackBy(pos);
+
+      fill_solid(leds, NUM_LEDS, temp);
     }
   }
   else
@@ -311,6 +455,7 @@ bool leds_update(int global_mode)
   overlay_color.fadeToBlackBy(20);
 
   FastLED.show();
+
   return animation_done;
 }
 
